@@ -15,15 +15,23 @@ def generate_precip_df(session, start_date, end_date):
     from snowflake.snowpark import functions as F 
     import pandas as pd
 
-    tempdf = pd.read_csv('./include/weather.csv')
-    tempdf['DATE']=pd.to_datetime(tempdf['dt_iso'].str.replace(' UTC', ''), 
-                                 format='%Y-%m-%d %H:%M:%S %z', 
-                                 utc=True).dt.tz_convert('America/New_York').dt.date
-    tempdf = tempdf.groupby('DATE', as_index=False).agg(PRECIP=('rain_1h', 'mean')).round()
+#     tempdf = pd.read_csv('./include/weather.csv')
+#     tempdf['DATE']=pd.to_datetime(tempdf['dt_iso'].str.replace(' UTC', ''), 
+#                                  format='%Y-%m-%d %H:%M:%S %z', 
+#                                  utc=True).dt.tz_convert('America/New_York').dt.date
+#     tempdf = tempdf.groupby('DATE', as_index=False).agg(PRECIP=('rain_1h', 'mean')).round()
 
-    precip_df = session.create_dataframe(tempdf).filter((F.col('DATE') >= start_date) &
-                                                        (F.col('DATE') <= end_date))\
-                       .fillna({'PRECIP':0})
+#     precip_df = session.create_dataframe(tempdf).filter((F.col('DATE') >= start_date) &
+#                                                         (F.col('DATE') <= end_date))\
+#                        .fillna({'PRECIP':0})
+
+    precip_df = session.table('WEATHERSOURCE_AWS_EU_FRANKFURT_WEATHERSOURCE_FROSTBITE.FROSTBITE.HISTORY_DAY')\
+                       .filter(F.col('POSTAL_CODE') == '10007')\
+                       .select(F.col('DATE_VALID_STD').alias('DATE'), 
+                               F.col('TOT_PRECIPITATION_IN').alias('PRECIP'))\
+                       .filter((F.col('DATE') >= start_date) &\
+                               (F.col('DATE') <= end_date))\
+                       .sort('DATE', ascending=False)
     return precip_df
 
 def generate_features(session, input_df, holiday_table_name, precip_table_name):
