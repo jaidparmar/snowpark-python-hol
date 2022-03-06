@@ -3,12 +3,24 @@ channels:
   - https://repo.anaconda.com/pkgs/snowflake
 dependencies:
   - python=3.8
+  - pandas
+  - setuptools>=40.6.0
+  - wheel
+  - cloudpickle>=1.6.0
+  - pytest[development]
+  - pytest-cov[development]
+  - coverage[development]
+  - sphinx[development]
+  - pytorch
+  - matplotlib
+  - statsmodels
+  - seaborn
+  - jupyter
   - pip
   - pip:
+    - sphinx-autodoc-typehints[development]
+    - snowflake-connector-python>=2.7.4
+    - snowflake-connector-python[pandas]>=2.7.4
     - './include/snowflake_snowpark_python-0.4.1-py3-none-any.whl[pandas]'
     - pytorch-tabnet
-    - matplotlib
-    - statsmodels
-    - seaborn
     - rexmex
-    - jupyter
