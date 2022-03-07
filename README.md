@@ -26,12 +26,12 @@ sh ~/Downloads/miniconda.sh -b -p $HOME/miniconda
 ~/miniconda/bin/conda init  
 conda update conda
 cat ~/.bash_profile >> ~/.zshrc  
+. ~/.zshrc
 ```
 -If git is not installed on your local system you can install via conda.
 ```bash
 conda install git
 ```
-
 -Clone this repository and create an environment
 ```
 mkdir ~/Desktop/snowpark-python
