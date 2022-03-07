@@ -1,7 +1,7 @@
 ## Citibike Machine Learning Hands-on-Lab with Snowpark Python  
 
 ### Requirements:  
--An account in [Amazon SageMaker Studio Lab](https://studiolab.sagemaker.aws/).  Do this ahead of time as sign-up may take up to 24 hours due to backlog.
+-An account in [Amazon SageMaker Studio Lab](https://studiolab.sagemaker.aws/).  Do this ahead of time as sign-up may take up to 24 hours due to backlog.  
 -A Snowflake account activated for Snowpark Private Preview.  
     
 
@@ -13,8 +13,9 @@
 -Click on Open Project  
 -Select Git -> Clone Git Repository and enter the following:  
     -- Repository URL: https://github.com/sfc-gh-mgregory/snowpark-python-hol.  
--Select Yes when prompted to create a conda environment.
--When opening notebooks be sure to select the "snowpark_041" kernel.
+-Select Yes when prompted to create a conda environment.  
+-A terminal will open and create the environment.  When it is done run `conda activate snowpark_041` in the terminal window.  
+-When opening notebooks be sure to select the "snowpark_041" kernel.  
 
 ### Alternative Client  
 
