@@ -38,7 +38,7 @@ mkdir ~/Desktop/snowpark-python
 cd ~/Desktop/snowpark-python
 git clone https://github.com/sfc-gh-mgregory/snowpark-python-hol
 cd snowpark-python-hol
-conda env create -f environment.yml
+conda env create -f jupyter_env.yml
 conda activate snowpark_041
 jupyter notebook
 ```
