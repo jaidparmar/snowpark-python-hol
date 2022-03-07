@@ -25,7 +25,7 @@ curl https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-x86_64.sh -o ~
 sh ~/Downloads/miniconda.sh -b -p $HOME/miniconda  
 ~/miniconda/bin/conda init  
 conda update conda
-cat .bash_profile >> .zshrc  
+cat ~/.bash_profile >> ~/.zshrc  
 ```
 -If git is not installed on your local system you can install via conda.
 ```bash
