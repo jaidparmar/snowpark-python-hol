@@ -65,11 +65,11 @@ def generate_features(session, input_df, holiday_table_name, weather_table_name)
     except:
         holiday_df = generate_holiday_df(session, holiday_table_name)
         
-    weather_df = session.table(weather_table_name)
+    weather_df = session.table(weather_table_name)[['DATE','TEMP']]
     try: 
         _ = weather_df.columns()
     except:
-        weather_df = generate_weather_df(session, weather_table_name)
+        weather_df = generate_weather_df(session, weather_table_name)[['DATE','TEMP']]
 
     feature_df = input_df.select(F.to_date(F.col('STARTTIME')).alias('DATE'),
                                  F.col('START_STATION_ID').alias('STATION_ID'))\
@@ -80,7 +80,6 @@ def generate_features(session, input_df, holiday_table_name, weather_table_name)
     #Impute missing values for lag columns using mean of the previous period.
     mean_1 = round(feature_df.sort('DATE').limit(1).select(F.mean('COUNT')).collect()[0][0])
     mean_7 = round(feature_df.sort('DATE').limit(7).select(F.mean('COUNT')).collect()[0][0])
-    mean_90 = round(feature_df.sort('DATE').limit(90).select(F.mean('COUNT')).collect()[0][0])
     mean_365 = round(feature_df.sort('DATE').limit(365).select(F.mean('COUNT')).collect()[0][0])
 
     date_win = snp.Window.order_by('DATE')
@@ -88,8 +87,6 @@ def generate_features(session, input_df, holiday_table_name, weather_table_name)
     feature_df = feature_df.with_column('LAG_1', F.lag('COUNT', offset=1, default_value=mean_1) \
                                          .over(date_win)) \
                            .with_column('LAG_7', F.lag('COUNT', offset=7, default_value=mean_7) \
-                                         .over(date_win)) \
-                           .with_column('LAG_90', F.lag('COUNT', offset=90, default_value=mean_90) \
                                          .over(date_win)) \
                            .with_column('LAG_365', F.lag('COUNT', offset=365, default_value=mean_365) \
                                          .over(date_win)) \
