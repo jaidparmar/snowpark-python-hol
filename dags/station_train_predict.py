@@ -1,4 +1,3 @@
-
 def station_train_predict_func(historical_data:list, 
                                historical_column_names:list, 
                                target_column:str,
@@ -18,6 +17,7 @@ def station_train_predict_func(historical_data:list,
     feature_columns.remove('DATE')
     #feature_columns.remove('STATION_ID')
     feature_columns.remove(target_column)
+    forecast_steps = len(forecast_data)
     
     df = pd.DataFrame(historical_data, columns = historical_column_names)
     
@@ -48,7 +48,7 @@ def station_train_predict_func(historical_data:list,
     if len(lag_values) > 0:
         forecast_df = pd.DataFrame(forecast_data, columns = forecast_column_names)
         
-        for step in range(len(forecast_df)):
+        for step in range(forecast_steps):
             #station_id = df.iloc[-1]['STATION_ID']
             future_date = df.iloc[-1]['DATE']+timedelta(days=1)
             lags=[df.shift(lag-1).iloc[-1]['COUNT'] for lag in lag_values]
@@ -65,5 +65,5 @@ def station_train_predict_func(historical_data:list,
     df = pd.concat([df.set_index('DATE').reset_index(), explain_df], axis=1)
     df['DATE'] = df['DATE'].dt.strftime('%Y-%m-%d')
     
-    return [df.values.tolist(), df.columns.tolist()]
-
+    #return separate lists for historical and forecast data along with column names
+    return [df[:-forecast_steps].values.tolist(), df[-forecast_steps:].values.tolist(), df.columns.tolist()]
