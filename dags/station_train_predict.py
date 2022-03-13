@@ -66,4 +66,6 @@ def station_train_predict_func(historical_data:list,
     df['DATE'] = df['DATE'].dt.strftime('%Y-%m-%d')
     
     #return separate lists for historical and forecast data along with column names
-    return [df[:-forecast_steps].values.tolist(), df[-forecast_steps:].values.tolist(), df.columns.tolist()]
+    return [df[:-forecast_steps].values.tolist(), 
+            df[-forecast_steps:].values.tolist(), 
+            df.columns.tolist()]
