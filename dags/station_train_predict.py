@@ -1,4 +1,3 @@
-
 def station_train_predict_func(historical_data:list, 
                                historical_column_names:list, 
                                target_column:str,
@@ -16,20 +15,20 @@ def station_train_predict_func(historical_data:list,
     
     feature_columns = historical_column_names.copy()
     feature_columns.remove('DATE')
-    feature_columns.remove('STATION_ID')
+    #feature_columns.remove('STATION_ID')
     feature_columns.remove(target_column)
+    forecast_steps = len(forecast_data)
     
     df = pd.DataFrame(historical_data, columns = historical_column_names)
-    #df['DATE']=pd.to_datetime(df['DATE']).dt.date
+    
+    ##In order to do train/valid split on time-based portion the input data must be sorted by date    
+    df['DATE'] = pd.to_datetime(df['DATE'])
+    df = df.sort_values(by='DATE', ascending=True)
     
     y_valid = df[target_column][-cutpoint:].values.reshape(-1, 1)
     X_valid = df[feature_columns][-cutpoint:].values
     y_train = df[target_column][:-cutpoint].values.reshape(-1, 1)
     X_train = df[feature_columns][:-cutpoint].values
-    
-    batch_df = pd.DataFrame(range(2,65,2), columns=['batch_size'])
-    batch_df['batch_remainder'] = len(X_train)%batch_df['batch_size']
-    optimal_batch_size=int(batch_df['batch_size'].where(batch_df['batch_remainder']==batch_df['batch_remainder'].min()).max())
     
     model = TabNetRegressor()
 
@@ -38,8 +37,8 @@ def station_train_predict_func(historical_data:list,
         eval_set=[(X_valid, y_valid)],
         max_epochs=max_epochs,
         patience=100,
-        batch_size=optimal_batch_size, 
-        virtual_batch_size=optimal_batch_size/2,
+        batch_size=128, 
+        virtual_batch_size=64,
         num_workers=0,
         drop_last=True)
     
@@ -49,19 +48,24 @@ def station_train_predict_func(historical_data:list,
     if len(lag_values) > 0:
         forecast_df = pd.DataFrame(forecast_data, columns = forecast_column_names)
         
-        for step in range(len(forecast_df)):
-            station_id = df['STATION_ID'][-1:].values[0]
-            future_date = (pd.to_datetime(df.iloc[-1]['DATE'])+timedelta(days=1)).strftime('%Y-%m-%d')
+        for step in range(forecast_steps):
+            #station_id = df.iloc[-1]['STATION_ID']
+            future_date = df.iloc[-1]['DATE']+timedelta(days=1)
             lags=[df.shift(lag-1).iloc[-1]['COUNT'] for lag in lag_values]
-            forecast=forecast_df.loc[forecast_df['DATE']==future_date]
+            forecast=forecast_df.loc[forecast_df['DATE']==future_date.strftime('%Y-%m-%d')]
             forecast=forecast.drop(labels='DATE', axis=1).values.tolist()[0]
             features=[*lags, *forecast]
             pred=round(model.predict(np.array([features]))[0][0])
-            row=[future_date, station_id, pred, *features, pred]
+            #row=[future_date, station_id, pred, *features, pred]
+            row=[future_date, pred, *features, pred]
             df.loc[len(df)]=row
     
     explain_df = pd.DataFrame(model.explain(df[feature_columns].astype(float).values)[0], 
                          columns = feature_columns).add_prefix('EXPL_').round(2)
     df = pd.concat([df.set_index('DATE').reset_index(), explain_df], axis=1)
-   
-    return [df.values.tolist(), df.columns.tolist()]
+    df['DATE'] = df['DATE'].dt.strftime('%Y-%m-%d')
+    
+    #return separate lists for historical and forecast data along with column names
+    return [df[:-forecast_steps].values.tolist(), 
+            df[-forecast_steps:].values.tolist(), 
+            df.columns.tolist()]
