@@ -50,17 +50,18 @@ def deploy_eval_udf(session, udf_name:str, function_name:str, model_stage_name:s
     return eval_model_output_udf.name
 
 def create_forecast_table(session, 
+                          trips_table_name:str,
                           holiday_table_name:str, 
                           weather_table_name:str, 
                           forecast_table_name:str,
-                          start_date:str, 
                           steps:int):
     
     from dags.feature_engineering import generate_holiday_df, generate_weather_df
     from datetime import timedelta, datetime
     from snowflake.snowpark import functions as F 
     
-    start_date = datetime.strptime(start_date, '%Y-%m-%d')
+    start_date = session.table(trips_table_name)\
+                        .select(F.to_date(F.max('STARTTIME'))).collect()[0][0]+timedelta(days=1)
     end_date = start_date+timedelta(days=steps)
 
     #check if it tables already materialized, otherwise generate DF
@@ -216,5 +217,3 @@ def evaluate_station_model(session, eval_model_udf_name:str, pred_table_name:str
             .save_as_table(eval_table_name)
     
     return eval_table_name
-
-
