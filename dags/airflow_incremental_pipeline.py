@@ -13,6 +13,7 @@ from dags.airflow_tasks import generate_feature_table_task
 from dags.airflow_tasks import generate_forecast_table_task
 from dags.airflow_tasks import bulk_train_predict_task
 from dags.airflow_tasks import eval_station_models_task 
+from dags.airflow_tasks import flatten_tables_task
 
 default_args = {
     'owner': 'airflow',
@@ -62,12 +63,13 @@ def citibikeml_monthly_taskflow(files_to_download):
     incr_state_dict = incremental_elt_task(state_dict, files_to_download)
     holiday_state_dict = materialize_holiday_task(incr_state_dict)
     weather_state_dict = materialize_weather_task(incr_state_dict)
-    model_state_dict = deploy_model_udf_task(incr_state_dict)
-    eval_state_dict = deploy_eval_udf_task(incr_state_dict)
+    model_udf_state_dict = deploy_model_udf_task(incr_state_dict)
+    eval_udf_state_dict = deploy_eval_udf_task(incr_state_dict)
     feature_state_dict = generate_feature_table_task(incr_state_dict, holiday_state_dict, weather_state_dict) 
     foecast_state_dict = generate_forecast_table_task(holiday_state_dict, weather_state_dict, '2020-03-01')
-    pred_state_dict = bulk_train_predict_task(model_state_dict, feature_state_dict, foecast_state_dict)
-    state_dict = eval_station_models_task(eval_state_dict, pred_state_dict)  
+    pred_state_dict = bulk_train_predict_task(model_udf_state_dict, feature_state_dict, foecast_state_dict)
+    eval_state_dict = eval_station_models_task(eval_udf_state_dict, pred_state_dict)
+    state_dict = flatten_tables_task(pred_state_dict, eval_state_dict)
 
     return state_dict
 

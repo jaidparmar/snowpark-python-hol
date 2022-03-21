@@ -17,6 +17,7 @@ def materialize_weather_table(session, weather_table_name:str) -> str:
 
 def deploy_pred_train_udf(session, udf_name:str, function_name:str, model_stage_name:str) -> str:
     from dags.station_train_predict import station_train_predict_func
+    from snowflake.snowpark import types as T
 
     session.clear_packages()
     session.clear_imports()
@@ -29,11 +30,22 @@ def deploy_pred_train_udf(session, udf_name:str, function_name:str, model_stage_
                                                      stage_location='@'+str(model_stage_name), 
                                                      imports=dep_imports,
                                                      packages=dep_packages,
+                                                     input_types=[T.ArrayType(), 
+                                                                  T.ArrayType(), 
+                                                                  T.StringType(), 
+                                                                  T.IntegerType(), 
+                                                                  T.IntegerType(), 
+                                                                  T.ArrayType(), 
+                                                                  T.ArrayType(), 
+                                                                  T.ArrayType()],
+                                                     return_type=T.VariantType(),
                                                      replace=True)
     return station_train_predict_udf.name
 
+
 def deploy_eval_udf(session, udf_name:str, function_name:str, model_stage_name:str) -> str:
     from dags.model_eval import eval_model_func
+    from snowflake.snowpark import types as T
 
     session.clear_packages()
     session.clear_imports()
@@ -46,6 +58,10 @@ def deploy_eval_udf(session, udf_name:str, function_name:str, model_stage_name:s
                                                  stage_location='@'+str(model_stage_name), 
                                                  imports=dep_imports,
                                                  packages=dep_packages,
+                                                 input_types=[T.StringType(), 
+                                                              T.StringType(), 
+                                                              T.StringType()],
+                                                 return_type=T.VariantType(),
                                                  replace=True)
     return eval_model_output_udf.name
 
@@ -177,26 +193,25 @@ def train_predict(session,
                  .write.mode('overwrite')\
                  .save_as_table(pred_table_name)
     
+#     #unpack the PRED dateframe (temporary until UDTFs)
 #     import pandas as pd
 #     import ast
 #     output_list = session.table(pred_table_name).collect()
-#     df = pd.DataFrame()
+#     #df = pd.DataFrame()
 #     for row in range(len(output_list)):
 #         tempdf = pd.DataFrame(data = ast.literal_eval(output_list[row]['PRED_DATA'])[0], 
-#                                     columns=ast.literal_eval(output_list[row]['PRED_DATA'])[2]
-#                                     )
+#                               columns=ast.literal_eval(output_list[row]['PRED_DATA'])[2])
 #         tempdf['STATION_ID'] = str(output_list[row]['STATION_ID'])
-#         df = pd.concat([df, tempdf], axis=0)
-#     session.createDataFrame(df).write.mode('overwrite').saveAsTable(pred_table_name)
+#         #df = pd.concat([df, tempdf], axis=0)
+#         session.createDataFrame(tempdf).write.saveAsTable('unpacked_'+pred_table_name)
 
-    
+#     #unpack the FORECAST dateframe (temporary until UDTFs)
 #     for row in range(len(output_list)):
 #         tempdf = pd.DataFrame(data = ast.literal_eval(output_list[row]['PRED_DATA'])[1], 
-#                                     columns=ast.literal_eval(output_list[row]['PRED_DATA'])[2]
-#                                     )
+#                               columns=ast.literal_eval(output_list[row]['PRED_DATA'])[2])
 #         tempdf['STATION_ID'] = str(output_list[row]['STATION_ID'])
-#         df = pd.concat([df, tempdf], axis=0)
-#     session.createDataFrame(df).write.mode('overwrite').saveAsTable(forecast_table_name)
+#         #df = pd.concat([df, tempdf], axis=0)
+#         session.createDataFrame(tempdf).write.saveAsTable('unpacked_'+forecast_table_name)
 
     return pred_table_name #, forecast_table_name
 
@@ -206,14 +221,70 @@ def evaluate_station_model(session, eval_model_udf_name:str, pred_table_name:str
     y_true_name='COUNT'
     y_score_name='PRED'
     
-    pred_df = session.table(pred_table_name)
-    
-    pred_df.select('STATION_ID',
+    session.table(pred_table_name)\
+           .select('STATION_ID',
                    F.call_udf(eval_model_udf_name,
-                              F.col('PRED_DATA'),
+                              F.parse_json(F.col('PRED_DATA')[0]),
                               F.lit(y_true_name),
-                              F.lit(y_score_name)))\
+                              F.lit(y_score_name)).alias('EVAL_DATA'))\
             .write.mode('overwrite')\
             .save_as_table(eval_table_name)
     
     return eval_table_name
+
+def flatten_tables(session, pred_table_name:str, forecast_table_name:str, eval_table_name:str):
+    from snowflake.snowpark import functions as F
+    
+    session.table(pred_table_name)\
+           .select('STATION_ID', F.parse_json(F.col('PRED_DATA')[0]).alias('PRED_DATA'))\
+           .flatten('PRED_DATA').select('STATION_ID', F.col('VALUE').alias('PRED_DATA'))\
+           .select('STATION_ID', 
+                   F.to_date(F.col('PRED_DATA')['DATE']).alias('DATE'),
+                   F.as_integer(F.col('PRED_DATA')['COUNT']).alias('COUNT'),
+                   F.as_integer(F.col('PRED_DATA')['LAG_1']).alias('LAG_1'),
+                   F.as_integer(F.col('PRED_DATA')['LAG_7']).alias('LAG_7'),
+                   F.as_integer(F.col('PRED_DATA')['LAG_365']).alias('LAG_365'),
+                   F.as_integer(F.col('PRED_DATA')['HOLIDAY']).alias('HOLIDAY'),
+                   F.as_decimal(F.col('PRED_DATA')['TEMP']).alias('TEMP'),
+                   F.as_decimal(F.col('PRED_DATA')['PRED']).alias('PRED'),
+                   F.as_decimal(F.col('PRED_DATA')['EXPL_LAG_1']).alias('EXPL_LAG_1'),
+                   F.as_decimal(F.col('PRED_DATA')['EXPL_LAG_7']).alias('EXPL_LAG_7'),
+                   F.as_decimal(F.col('PRED_DATA')['EXPL_LAG_365']).alias('EXPL_LAG_365'),
+                   F.as_decimal(F.col('PRED_DATA')['EXPL_HOLIDAY']).alias('EXPL_HOLIDAY'),
+                   F.as_decimal(F.col('PRED_DATA')['EXPL_TEMP']).alias('EXPL_TEMP'))\
+           .write.mode('overwrite').save_as_table('flat_'+pred_table_name)
+
+    #forecast are in position 2 of the pred_table
+    session.table(pred_table_name)\
+           .select('STATION_ID', F.parse_json(F.col('PRED_DATA')[1]).alias('PRED_DATA'))\
+           .flatten('PRED_DATA').select('STATION_ID', F.col('VALUE').alias('PRED_DATA'))\
+           .select('STATION_ID', 
+                   F.to_date(F.col('PRED_DATA')['DATE']).alias('DATE'),
+                   F.as_integer(F.col('PRED_DATA')['COUNT']).alias('COUNT'),
+                   F.as_integer(F.col('PRED_DATA')['LAG_1']).alias('LAG_1'),
+                   F.as_integer(F.col('PRED_DATA')['LAG_7']).alias('LAG_7'),
+                   F.as_integer(F.col('PRED_DATA')['LAG_365']).alias('LAG_365'),
+                   F.as_integer(F.col('PRED_DATA')['HOLIDAY']).alias('HOLIDAY'),
+                   F.as_decimal(F.col('PRED_DATA')['TEMP']).alias('TEMP'),
+                   F.as_decimal(F.col('PRED_DATA')['PRED']).alias('PRED'),
+                   F.as_decimal(F.col('PRED_DATA')['EXPL_LAG_1']).alias('EXPL_LAG_1'),
+                   F.as_decimal(F.col('PRED_DATA')['EXPL_LAG_7']).alias('EXPL_LAG_7'),
+                   F.as_decimal(F.col('PRED_DATA')['EXPL_LAG_365']).alias('EXPL_LAG_365'),
+                   F.as_decimal(F.col('PRED_DATA')['EXPL_HOLIDAY']).alias('EXPL_HOLIDAY'),
+                   F.as_decimal(F.col('PRED_DATA')['EXPL_TEMP']).alias('EXPL_TEMP'))\
+           .write.mode('overwrite').save_as_table('flat_'+forecast_table_name)
+
+    session.table(eval_table_name)\
+           .select('STATION_ID', F.parse_json(F.col('EVAL_DATA')).alias('EVAL_DATA'))\
+           .flatten('EVAL_DATA').select('STATION_ID', F.col('VALUE').alias('EVAL_DATA'))\
+           .select('STATION_ID', 
+                   F.as_decimal(F.col('EVAL_DATA')['mae'], 10, 2).alias('mae'),
+                   F.as_decimal(F.col('EVAL_DATA')['mape'], 10, 2).alias('mape'),
+                   F.as_decimal(F.col('EVAL_DATA')['mse'], 10, 2).alias('mse'),
+                   F.as_decimal(F.col('EVAL_DATA')['r_squared'], 10, 2).alias('r_squared'),
+                   F.as_decimal(F.col('EVAL_DATA')['rmse'], 10, 2).alias('rmse'),
+                   F.as_decimal(F.col('EVAL_DATA')['smape'], 10, 2).alias('smape'),)\
+           .write.mode('overwrite').save_as_table('flat_'+eval_table_name)
+    
+    return 'flat_'+pred_table_name, 'flat_'+forecast_table_name, 'flat_'+eval_table_name
+        

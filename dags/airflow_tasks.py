@@ -37,7 +37,7 @@ def incremental_elt_task(state_dict: dict, files_to_download:list)-> dict:
     return state_dict
 
 @task()
-def initial_bulk_load_task(state_dict:dict)-> dict:
+def initial_bulk_load_task(state_dict:dict, download_base_url='', download_role_ARN='')-> dict:
     from dags.snowpark_connection import snowpark_connect
     from dags.ingest import bulk_elt
     from dags.elt import schema1_definition, schema2_definition
@@ -45,9 +45,6 @@ def initial_bulk_load_task(state_dict:dict)-> dict:
     session, _ = snowpark_connect()
     _ = session.use_warehouse(state_dict['compute_parameters']['load_warehouse'])
     _ = session.sql('CREATE STAGE IF NOT EXISTS ' + state_dict['load_stage_name']).collect()
-
-    download_role_ARN='arn:aws:iam::484577546576:role/citibike-demo-ml-s3-role'
-    download_base_url='s3://citibike-demo-ml/data/'
 
     print('Running initial bulk ingest from '+download_base_url)
 
@@ -230,3 +227,25 @@ def eval_station_models_task(state_dict:dict,
                     " SET TAG model_id_tag = '"+state_dict['model_id']+"'").collect()
     session.close()
     return state_dict                                               
+
+@task()
+def flatten_tables_task(pred_state_dict:dict, state_dict:dict)-> dict:
+    from dags.snowpark_connection import snowpark_connect
+    from dags.mlops_pipeline import flatten_tables
+
+    print('Flattening tables for end-user consumption.')
+    session, _ = snowpark_connect()
+
+    flat_pred_table, flat_forecast_table, flat_eval_table = flatten_tables(session,
+                                                                           pred_table_name=state_dict['pred_table_name'], 
+                                                                           forecast_table_name=state_dict['forecast_table_name'], 
+                                                                           eval_table_name=state_dict['eval_table_name'])
+    state_dict['flat_pred_table'] = flat_pred_table
+    state_dict['flat_forecast_table'] = flat_forecast_table
+    state_dict['flat_eval_table'] = flat_eval_table
+
+    _ = session.sql("ALTER TABLE "+flat_pred_table+" SET TAG model_id_tag = '"+state_dict["model_id"]+"'").collect()
+    _ = session.sql("ALTER TABLE "+flat_forecast_table+" SET TAG model_id_tag = '"+state_dict["model_id"]+"'").collect()
+    _ = session.sql("ALTER TABLE "+flat_eval_table+" SET TAG model_id_tag = '"+state_dict["model_id"]+"'").collect()
+
+    return state_dict

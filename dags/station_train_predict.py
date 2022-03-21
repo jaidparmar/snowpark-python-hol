@@ -5,7 +5,7 @@ def station_train_predict_func(historical_data:list,
                                max_epochs: int, 
                                forecast_data:list,
                                forecast_column_names:list,
-                               lag_values:list) -> str:
+                               lag_values:list):
     
     from torch import tensor
     import pandas as pd
@@ -64,8 +64,6 @@ def station_train_predict_func(historical_data:list,
                          columns = feature_columns).add_prefix('EXPL_').round(2)
     df = pd.concat([df.set_index('DATE').reset_index(), explain_df], axis=1)
     df['DATE'] = df['DATE'].dt.strftime('%Y-%m-%d')
-    
-    #return separate lists for historical and forecast data along with column names
-    return [df[:-forecast_steps].values.tolist(), 
-            df[-forecast_steps:].values.tolist(), 
-            df.columns.tolist()]
+
+    return [df[:-forecast_steps].to_json(orient='records', lines=False), 
+            df[-forecast_steps:].to_json(orient='records', lines=False)]
