@@ -1,4 +1,4 @@
-name: snowpark_041
+name: snowpark_050
 channels:
   - https://repo.anaconda.com/pkgs/snowflake
 dependencies:
@@ -21,6 +21,6 @@ dependencies:
     - sphinx-autodoc-typehints[development]
     - snowflake-connector-python>=2.7.4
     - snowflake-connector-python[pandas]>=2.7.4
-    - './include/snowflake_snowpark_python-0.4.1-py3-none-any.whl[pandas]'
+    - './include/snowflake_snowpark_python-0.5.0-py3-none-any.whl[pandas]'
     - pytorch-tabnet
     - rexmex
