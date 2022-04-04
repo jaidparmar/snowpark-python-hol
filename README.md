@@ -14,8 +14,8 @@
 -Select Git -> Clone Git Repository and enter the following:  
     -- Repository URL: https://github.com/sfc-gh-mgregory/snowpark-python-hol.  
 -Select Yes when prompted to create a conda environment.  
--A terminal will open and create the environment.  When it is done run `conda activate snowpark_041` in the terminal window.  
--When opening notebooks be sure to select the "snowpark_041" kernel.  
+-A terminal will open and create the environment.  When it is done run `conda activate snowpark_050` in the terminal window.  
+-When opening notebooks be sure to select the "snowpark_050" kernel.  
 
 ### Alternative Client  
 
@@ -39,7 +39,7 @@ cd ~/Desktop/snowpark-python
 git clone https://github.com/sfc-gh-mgregory/snowpark-python-hol
 cd snowpark-python-hol
 conda env create -f jupyter_env.yml
-conda activate snowpark_041
+conda activate snowpark_050
 jupyter notebook
 ```
 

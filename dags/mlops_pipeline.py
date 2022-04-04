@@ -215,20 +215,27 @@ def train_predict(session,
 
     return pred_table_name #, forecast_table_name
 
-def evaluate_station_model(session, eval_model_udf_name:str, pred_table_name:str, eval_table_name:str):
+def evaluate_station_model(session, 
+                           run_date:str, 
+                           eval_model_udf_name:str, 
+                           pred_table_name:str, 
+                           eval_table_name:str):
     from snowflake.snowpark import functions as F
-
+    from datetime import datetime
+    
     y_true_name='COUNT'
     y_score_name='PRED'
-    
+    run_date=datetime.strptime(run_date, '%Y_%m_%d').date()
+
     session.table(pred_table_name)\
            .select('STATION_ID',
                    F.call_udf(eval_model_udf_name,
                               F.parse_json(F.col('PRED_DATA')[0]),
                               F.lit(y_true_name),
                               F.lit(y_score_name)).alias('EVAL_DATA'))\
-            .write.mode('overwrite')\
-            .save_as_table(eval_table_name)
+           .with_column('RUN_DATE', F.to_date(F.lit(run_date)))\
+           .write.mode('overwrite')\
+           .save_as_table(eval_table_name)
     
     return eval_table_name
 
@@ -252,7 +259,7 @@ def flatten_tables(session, pred_table_name:str, forecast_table_name:str, eval_t
                    F.as_decimal(F.col('PRED_DATA')['EXPL_LAG_365']).alias('EXPL_LAG_365'),
                    F.as_decimal(F.col('PRED_DATA')['EXPL_HOLIDAY']).alias('EXPL_HOLIDAY'),
                    F.as_decimal(F.col('PRED_DATA')['EXPL_TEMP']).alias('EXPL_TEMP'))\
-           .write.mode('overwrite').save_as_table('flat_'+pred_table_name)
+           .write.mode('overwrite').save_as_table('flat_PRED')
 
     #forecast are in position 2 of the pred_table
     session.table(pred_table_name)\
@@ -272,19 +279,19 @@ def flatten_tables(session, pred_table_name:str, forecast_table_name:str, eval_t
                    F.as_decimal(F.col('PRED_DATA')['EXPL_LAG_365']).alias('EXPL_LAG_365'),
                    F.as_decimal(F.col('PRED_DATA')['EXPL_HOLIDAY']).alias('EXPL_HOLIDAY'),
                    F.as_decimal(F.col('PRED_DATA')['EXPL_TEMP']).alias('EXPL_TEMP'))\
-           .write.mode('overwrite').save_as_table('flat_'+forecast_table_name)
+           .write.mode('overwrite').save_as_table('flat_FORECAST')
 
     session.table(eval_table_name)\
-           .select('STATION_ID', F.parse_json(F.col('EVAL_DATA')).alias('EVAL_DATA'))\
-           .flatten('EVAL_DATA').select('STATION_ID', F.col('VALUE').alias('EVAL_DATA'))\
-           .select('STATION_ID', 
+           .select('RUN_DATE', 'STATION_ID', F.parse_json(F.col('EVAL_DATA')).alias('EVAL_DATA'))\
+           .flatten('EVAL_DATA').select('RUN_DATE', 'STATION_ID', F.col('VALUE').alias('EVAL_DATA'))\
+           .select('RUN_DATE', 'STATION_ID', 
                    F.as_decimal(F.col('EVAL_DATA')['mae'], 10, 2).alias('mae'),
                    F.as_decimal(F.col('EVAL_DATA')['mape'], 10, 2).alias('mape'),
                    F.as_decimal(F.col('EVAL_DATA')['mse'], 10, 2).alias('mse'),
                    F.as_decimal(F.col('EVAL_DATA')['r_squared'], 10, 2).alias('r_squared'),
                    F.as_decimal(F.col('EVAL_DATA')['rmse'], 10, 2).alias('rmse'),
                    F.as_decimal(F.col('EVAL_DATA')['smape'], 10, 2).alias('smape'),)\
-           .write.mode('overwrite').save_as_table('flat_'+eval_table_name)
+           .write.mode('append').save_as_table('flat_EVAL')
     
-    return 'flat_'+pred_table_name, 'flat_'+forecast_table_name, 'flat_'+eval_table_name
+    return 'flat_PRED', 'flat_FORECAST', 'flat_EVAL'
         

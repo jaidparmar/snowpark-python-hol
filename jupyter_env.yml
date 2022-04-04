@@ -24,3 +24,4 @@ dependencies:
     - './include/snowflake_snowpark_python-0.5.0-py3-none-any.whl[pandas]'
     - pytorch-tabnet
     - rexmex
+    - streamlit
