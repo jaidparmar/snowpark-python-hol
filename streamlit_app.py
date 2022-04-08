@@ -1,10 +1,17 @@
-import streamlit as st
-import pandas as pd
-from datetime import timedelta
-import altair as alt
 from snowflake.snowpark import functions as F
 from dags.snowpark_connection import snowpark_connect
+import streamlit as st
+import pandas as pd
+from datetime import timedelta, datetime
+from dateutil.relativedelta import *
+import calendar
+import altair as alt
+import requests
+from requests.auth import HTTPBasicAuth
+import time 
+import json
 import logging
+
 logging.basicConfig(level=logging.WARN)
 logging.getLogger().setLevel(logging.WARN)
 
@@ -120,7 +127,9 @@ end_date = start_date+timedelta(days=show_days)
 
 stations_df=session.table('FLAT_FORECAST').select(F.col('STATION_ID')).distinct().to_pandas()
 
-stations = st.multiselect('Choose stations', stations_df['STATION_ID'], ["519", "545"])
+sample_stations = ["519", "497", "435", "402", "426", "285", "293"]
+
+stations = st.multiselect('Choose stations', stations_df['STATION_ID'], sample_stations)
 if not stations:
     stations = stations_df['STATION_ID']
 
@@ -128,8 +137,59 @@ update_forecast_table(forecast_df, stations, start_date, end_date)
 
 update_eval_table(eval_df, stations)
 
-download_file_names = st.multiselect(label='Monthly ingest file(s):', 
-                                     options=['202003-citibike-tripdata.csv.zip'], 
-                                     default=['202003-citibike-tripdata.csv.zip'])
+last_trip_date = session.table('TRIPS').select(F.to_date(F.max('STARTTIME'))).collect()[0][0]
 
-st.button('Run Ingest Taskflow', args=(download_file_names))
+next_ingest = last_trip_date+relativedelta(months=+1)
+next_ingest = next_ingest.replace(day=1)       
+
+if next_ingest <= datetime.strptime("2016-12-01", "%Y-%m-%d").date():
+    download_file_name=next_ingest.strftime('%Y%m')+'-citibike-tripdata.zip'
+else:
+    download_file_name=next_ingest.strftime('%Y%m')+'-citibike-tripdata.csv.zip'
+    
+run_date = next_ingest+relativedelta(months=+1)
+run_date = run_date.strftime('%Y_%m_%d')
+
+st.write('Data provided as of '+str(last_trip_date))
+
+st.write('Next ingest for '+str(next_ingest))
+
+def trigger_ingest(download_file_name, run_date):    
+    dag_url='http://localhost:8080/api/v1/dags/citibikeml_monthly_taskflow/dagRuns'
+    json_payload = {"conf": {"files_to_download": [download_file_name], "run_date": run_date}}
+    
+    response = requests.post(dag_url, 
+                            json=json_payload,
+                            auth = HTTPBasicAuth('admin', 'admin'))
+
+    run_id = json.loads(response.text)['dag_run_id']
+    #run_id = 'manual__2022-04-07T15:02:29.166108+00:00'
+
+    state=json.loads(requests.get(dag_url+'/'+run_id, auth=HTTPBasicAuth('admin', 'admin')).text)['state']
+
+    st.snow()
+
+    with st.spinner('Ingesting file: '+download_file_name):
+        while state != 'success':
+            time.sleep(10)
+            state=json.loads(requests.get(dag_url+'/'+run_id, auth=HTTPBasicAuth('admin', 'admin')).text)['state']
+    st.success('Ingested file: '+download_file_name+' State: '+str(state))
+
+#     while state != 'success':
+#         st.write('Ingesting file: '+download_file_name+' State: '+str(state))
+#         time.sleep(10)
+#         state=json.loads(requests.get(dag_url+'/'+run_id, auth=HTTPBasicAuth('admin', 'admin')).text)['state']
+    
+#     st.write('Ingest, scoring and evaluation complete for file: '+download_file_name+' on run date: '+str(run_date))
+
+st.button('Run Ingest Taskflow', on_click=trigger_ingest, args=(download_file_name, run_date))
+
+# st.write('Select year and month for incremental ingest')
+# today=datetime.today().date()
+# run_year = st.selectbox('Year', range(max_date.year, today.year))
+# run_month = st.selectbox('Month', list(calendar.month_name)[1:])
+
+# run_date = st.date_input('Run Date', 
+#                         value=max_date+timedelta(1), 
+#                         min_value=max_date+timedelta(1), 
+#                         max_value=today).replace(day=1)
