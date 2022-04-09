@@ -10,7 +10,7 @@ from dags.mlops_tasks import bulk_train_predict_task
 from dags.mlops_tasks import eval_station_models_task 
 from dags.mlops_tasks import flatten_tables_task
 
-def citibikeml_setup_taskflow(download_base_url:str, download_role_ARN:str, run_date:str):
+def citibikeml_setup_taskflow(download_base_url:str):
     """
     End to end Snowflake ML Demo
     """
@@ -24,8 +24,7 @@ def citibikeml_setup_taskflow(download_base_url:str, download_role_ARN:str, run_
 
     state_dict.update({'model_id': model_id})
     state_dict.update({'run_date': run_date})
-    state_dict.update({'download_base_url': 'https://s3.amazonaws.com/tripdata/',
-                       'load_table_name': 'RAW_',
+    state_dict.update({'load_table_name': 'RAW_',
                        'trips_table_name': 'TRIPS',
                        'load_stage_name': 'LOAD_STAGE',
                        'model_stage_name': 'MODEL_STAGE',
@@ -45,7 +44,7 @@ def citibikeml_setup_taskflow(download_base_url:str, download_role_ARN:str, run_
     
     #Task order - one-time setup
     setup_state_dict = snowpark_database_setup(state_dict)
-    load_state_dict = initial_bulk_load_task(setup_state_dict, download_base_url, download_role_ARN)
+    load_state_dict = initial_bulk_load_task(setup_state_dict)
     holiday_state_dict = materialize_holiday_task(setup_state_dict)
     weather_state_dict = materialize_weather_task(setup_state_dict)
     model_udf_state_dict = deploy_model_udf_task(setup_state_dict)

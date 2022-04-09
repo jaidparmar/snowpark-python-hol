@@ -35,7 +35,7 @@ def incremental_elt(session,
         #print(files_to_load)
     else:
         print("Extracting files from public location.")
-        download_base_url=state_dict['download_base_url']
+        #download_base_url=state_dict['download_base_url']
         #_ = session.sql('CREATE OR REPLACE TEMPORARY STAGE '+str(load_stage_name)).collect()        
         load_stage_names, files_to_load = ELT.extract_trips_to_stage(session=session, 
                                                                     files_to_download=files_to_ingest, 

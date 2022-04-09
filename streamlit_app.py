@@ -15,9 +15,6 @@ import logging
 logging.basicConfig(level=logging.WARN)
 logging.getLogger().setLevel(logging.WARN)
 
-session, state_dict = snowpark_connect('./include/state.json')
-
-
 def update_forecast_table(forecast_df, stations:list, start_date, end_date):
 #     explainer_columns = [col for col in forecast_df.schema.names if 'EXP' in col]
     explainer_columns=['EXPL_LAG_1', 'EXPL_LAG_7','EXPL_LAG_365','EXPL_HOLIDAY','EXPL_TEMP']
@@ -109,50 +106,10 @@ def update_eval_table(eval_df, stations:list):
     ).properties(
         width=600, height=300
     )
-    st.write("### Model Monitor (RMSE)")
+    st.write("### Model Monitor")
     st.altair_chart(l, use_container_width=True)
     
     return None
-
-
-forecast_df = session.table('FLAT_FORECAST')
-eval_df = session.table('FLAT_EVAL')
-
-min_date=session.table('FLAT_FORECAST').select(F.min('DATE')).collect()[0][0]
-max_date=session.table('FLAT_FORECAST').select(F.max('DATE')).collect()[0][0]
-
-start_date = st.date_input('Start Date', value=min_date, min_value=min_date, max_value=max_date)
-show_days = st.number_input('Number of days to show', value=7, min_value=1, max_value=30)
-end_date = start_date+timedelta(days=show_days)
-
-stations_df=session.table('FLAT_FORECAST').select(F.col('STATION_ID')).distinct().to_pandas()
-
-sample_stations = ["519", "497", "435", "402", "426", "285", "293"]
-
-stations = st.multiselect('Choose stations', stations_df['STATION_ID'], sample_stations)
-if not stations:
-    stations = stations_df['STATION_ID']
-
-update_forecast_table(forecast_df, stations, start_date, end_date)
-
-update_eval_table(eval_df, stations)
-
-last_trip_date = session.table('TRIPS').select(F.to_date(F.max('STARTTIME'))).collect()[0][0]
-
-next_ingest = last_trip_date+relativedelta(months=+1)
-next_ingest = next_ingest.replace(day=1)       
-
-if next_ingest <= datetime.strptime("2016-12-01", "%Y-%m-%d").date():
-    download_file_name=next_ingest.strftime('%Y%m')+'-citibike-tripdata.zip'
-else:
-    download_file_name=next_ingest.strftime('%Y%m')+'-citibike-tripdata.csv.zip'
-    
-run_date = next_ingest+relativedelta(months=+1)
-run_date = run_date.strftime('%Y_%m_%d')
-
-st.write('Data provided as of '+str(last_trip_date))
-
-st.write('Next ingest for '+str(next_ingest))
 
 def trigger_ingest(download_file_name, run_date):    
     dag_url='http://localhost:8080/api/v1/dags/citibikeml_monthly_taskflow/dagRuns'
@@ -171,25 +128,58 @@ def trigger_ingest(download_file_name, run_date):
 
     with st.spinner('Ingesting file: '+download_file_name):
         while state != 'success':
-            time.sleep(10)
+            time.sleep(5)
             state=json.loads(requests.get(dag_url+'/'+run_id, auth=HTTPBasicAuth('admin', 'admin')).text)['state']
     st.success('Ingested file: '+download_file_name+' State: '+str(state))
 
-#     while state != 'success':
-#         st.write('Ingesting file: '+download_file_name+' State: '+str(state))
-#         time.sleep(10)
-#         state=json.loads(requests.get(dag_url+'/'+run_id, auth=HTTPBasicAuth('admin', 'admin')).text)['state']
+#Main Body    
+session, state_dict = snowpark_connect('./include/state.json')
+forecast_df = session.table('FLAT_FORECAST')
+eval_df = session.table('FLAT_EVAL')
+trips_df = session.table('TRIPS')
+
+st.header('Citibike Forecast Application')
+st.write('In this application we leverage deep learning models to predict the number of trips started from '+
+         'a given station each day.  After selecting the stations and time range desired the application '+\
+         'displays not only the forecast but also explains which features of the model were most used in making '+\
+         'the prediction. Additionally users can see the historical performance of the deep learning model to '+\
+         'monitor predictive capabilities over time.')
+
+last_trip_date = trips_df.select(F.to_date(F.max('STARTTIME'))).collect()[0][0]
+st.write('Data provided as of '+str(last_trip_date))
+
+#Create a sidebar for input
+min_date=forecast_df.select(F.min('DATE')).collect()[0][0]
+max_date=forecast_df.select(F.max('DATE')).collect()[0][0]
+
+start_date = st.sidebar.date_input('Start Date', value=min_date, min_value=min_date, max_value=max_date)
+show_days = st.sidebar.number_input('Number of days to show', value=7, min_value=1, max_value=30)
+end_date = start_date+timedelta(days=show_days)
+
+stations_df=forecast_df.select(F.col('STATION_ID')).distinct().to_pandas()
+
+sample_stations = ["519", "497", "435", "402", "426", "285", "293"]
+
+stations = st.sidebar.multiselect('Choose stations', stations_df['STATION_ID'], sample_stations)
+if not stations:
+    stations = stations_df['STATION_ID']
+
+update_forecast_table(forecast_df, stations, start_date, end_date)
+
+update_eval_table(eval_df, stations)
+
+
+next_ingest = last_trip_date+relativedelta(months=+1)
+next_ingest = next_ingest.replace(day=1)       
+
+if next_ingest <= datetime.strptime("2016-12-01", "%Y-%m-%d").date():
+    download_file_name=next_ingest.strftime('%Y%m')+'-citibike-tripdata.zip'
+else:
+    download_file_name=next_ingest.strftime('%Y%m')+'-citibike-tripdata.csv.zip'
     
-#     st.write('Ingest, scoring and evaluation complete for file: '+download_file_name+' on run date: '+str(run_date))
+run_date = next_ingest+relativedelta(months=+1)
+run_date = run_date.strftime('%Y_%m_%d')
+
+st.write('Next ingest for '+str(next_ingest))
 
 st.button('Run Ingest Taskflow', on_click=trigger_ingest, args=(download_file_name, run_date))
-
-# st.write('Select year and month for incremental ingest')
-# today=datetime.today().date()
-# run_year = st.selectbox('Year', range(max_date.year, today.year))
-# run_month = st.selectbox('Month', list(calendar.month_name)[1:])
-
-# run_date = st.date_input('Run Date', 
-#                         value=max_date+timedelta(1), 
-#                         min_value=max_date+timedelta(1), 
-#                         max_value=today).replace(day=1)

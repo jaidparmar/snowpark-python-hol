@@ -1,4 +1,3 @@
-
 def snowpark_connect(state_file='./include/state.json'):
     import snowflake.snowpark as snp
     import json

@@ -27,7 +27,10 @@ default_args = {
 #local_airflow_path = '/usr/local/airflow/'
 
 @dag(default_args=default_args, schedule_interval=None, start_date=datetime(2020, 4, 1), catchup=False, tags=['monthly'])
-def citibikeml_monthly_taskflow(files_to_download:list, run_date:str):
+def citibikeml_monthly_taskflow(files_to_download:list, 
+                                run_date:str, 
+                                download_base_url=download_base_url, 
+                                download_role_ARN=download_role_ARN):
     """
     End to end Snowpark / Astronomer ML Demo
     """
@@ -79,6 +82,12 @@ def citibikeml_monthly_taskflow(files_to_download:list, run_date:str):
 
     return state_dict
 
-run_date='2020_04_01'
-files_to_download = ['202003-citibike-tripdata.csv.zip']
-state_dict = citibikeml_monthly_taskflow(files_to_download=files_to_download, run_date=run_date)
+run_date='2020_02_01'
+files_to_download = ['202001-citibike-tripdata.csv.zip']
+download_role_ARN='arn:aws:iam::484577546576:role/citibike-demo-ml-s3-role'
+download_base_url='s3://citibike-demo-ml/data/incremental/'
+
+state_dict = citibikeml_monthly_taskflow(files_to_download=files_to_download, 
+                                         run_date=run_date, 
+                                         download_base_url=download_base_url, 
+                                         download_role_ARN=download_role_ARN)

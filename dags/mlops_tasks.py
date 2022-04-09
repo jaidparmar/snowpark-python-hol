@@ -24,15 +24,20 @@ def incremental_elt_task(state_dict: dict, files_to_download:list)-> dict:
     _ = session.sql('CREATE STAGE IF NOT EXISTS ' + state_dict['load_stage_name']).collect()
 
     print('Ingesting '+str(files_to_download))
+    
+    download_role_ARN=state_dict['connection_parameters']['download_role_ARN']
+    download_base_url=state_dict['connection_parameters']['download_base_url']
 
     _ = incremental_elt(session=session, 
                         state_dict=state_dict, 
-                        files_to_ingest=files_to_download)
+                        files_to_ingest=files_to_download,
+                        download_role_ARN=download_role_ARN,
+                        download_base_url=download_base_url)
 
     session.close()
     return state_dict
 
-def initial_bulk_load_task(state_dict:dict, download_base_url='', download_role_ARN='')-> dict:
+def initial_bulk_load_task(state_dict:dict)-> dict:
     from dags.snowpark_connection import snowpark_connect
     from dags.ingest import bulk_elt
     from dags.elt import schema1_definition, schema2_definition
@@ -42,7 +47,7 @@ def initial_bulk_load_task(state_dict:dict, download_base_url='', download_role_
     _ = session.sql('CREATE STAGE IF NOT EXISTS ' + state_dict['load_stage_name']).collect()
 
     print('Running initial bulk ingest from '+download_base_url)
-
+    
     #create empty ingest tables
     load_schema1 = schema1_definition()
     session.createDataFrame([[None]*len(load_schema1.names)], schema=load_schema1)\
@@ -55,6 +60,9 @@ def initial_bulk_load_task(state_dict:dict, download_base_url='', download_role_
            .na.drop()\
            .write\
            .saveAsTable(state_dict['load_table_name']+'schema2')
+
+    download_role_ARN=state_dict['connection_parameters']['download_role_ARN']
+    download_base_url=state_dict['connection_parameters']['download_base_url']
 
     bulk_elt(session=session, 
              state_dict=state_dict, 

@@ -27,7 +27,7 @@ default_args = {
 #local_airflow_path = '/usr/local/airflow/'
 
 @dag(default_args=default_args, schedule_interval=None, start_date=datetime(2020, 3, 1), catchup=False, tags=['setup'])
-def citibikeml_setup_taskflow(download_base_url:str, download_role_ARN:str, run_date:str):
+def citibikeml_setup_taskflow(run_date:str):
     """
     Setup initial Snowpark / Astronomer ML Demo
     """
@@ -37,13 +37,11 @@ def citibikeml_setup_taskflow(download_base_url:str, download_role_ARN:str, run_
     with open('./include/state.json') as sdf:
         state_dict = json.load(sdf)
     
-    #run_date='2020_03_01'
     model_id = str(uuid.uuid1()).replace('-', '_')
 
     state_dict.update({'model_id': model_id})
     state_dict.update({'run_date': run_date})
-    state_dict.update({'download_base_url': 'https://s3.amazonaws.com/tripdata/',
-                       'load_table_name': 'RAW_',
+    state_dict.update({'load_table_name': 'RAW_',
                        'trips_table_name': 'TRIPS',
                        'load_stage_name': 'LOAD_STAGE',
                        'model_stage_name': 'MODEL_STAGE',
@@ -63,7 +61,7 @@ def citibikeml_setup_taskflow(download_base_url:str, download_role_ARN:str, run_
 
 
     setup_state_dict = snowpark_database_setup(state_dict)
-    load_state_dict = initial_bulk_load_task(setup_state_dict, download_base_url, download_role_ARN)
+    load_state_dict = initial_bulk_load_task(setup_state_dict)
     holiday_state_dict = materialize_holiday_task(setup_state_dict)
     weather_state_dict = materialize_weather_task(setup_state_dict)
     model_udf_state_dict = deploy_model_udf_task(setup_state_dict)
@@ -76,9 +74,6 @@ def citibikeml_setup_taskflow(download_base_url:str, download_role_ARN:str, run_
 
     return state_dict
 
-run_date='2020_03_01'
-download_role_ARN='arn:aws:iam::484577546576:role/citibike-demo-ml-s3-role'
-download_base_url='s3://citibike-demo-ml/data/'
-state_dict = citibikeml_setup_taskflow(download_base_url=download_base_url, 
-                                       download_role_ARN=download_role_ARN, 
-                                       run_date=run_date)
+run_date='2020_01_01'
+
+state_dict = citibikeml_setup_taskflow(run_date=run_date)
