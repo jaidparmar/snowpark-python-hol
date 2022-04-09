@@ -131,10 +131,10 @@ def load_trips_to_raw(session, files_to_load:dict, load_stage_names:dict, load_t
                          .option("COMPRESSION", "GZIP")\
                          .option("NULL_IF", "\\\\N")\
                          .option("NULL_IF", "NULL")\
-                         .option("pattern", "'.*20.*[.]gz'")\
                          .schema(load_schema1)\
                          .csv('@'+load_stage_names['schema1'])\
                          .copy_into_table(load_table_name+'schema1', 
+                                          files=files_to_load['schema1'],
                                           format_type_options=csv_file_format_options)
                               
     if len(files_to_load['schema2']) > 0:
@@ -144,10 +144,10 @@ def load_trips_to_raw(session, files_to_load:dict, load_stage_names:dict, load_t
                          .option("COMPRESSION", "GZIP")\
                          .option("NULL_IF", "\\\\N")\
                          .option("NULL_IF", "NULL")\
-                         .option("pattern", "'.*20.*[.]gz'")\
                          .schema(load_schema2)\
                          .csv('@'+load_stage_names['schema2'])\
                          .copy_into_table(load_table_name+'schema2', 
+                                          files=files_to_load['schema2'],
                                           format_type_options=csv_file_format_options)
         
     load_table_names = {'schema1' : load_table_name+str('schema1'), 
@@ -170,14 +170,38 @@ def transform_trips(session, stage_table_names:dict, trips_table_name:str):
     transdf2 = session.table(stage_table_names['schema2'])[trips_table_schema_names]
                          
     transdf = transdf1.union_by_name(transdf2)\
-                      .withColumn('STARTTIME', F.regexp_replace(F.col('STARTTIME'),
+                      .with_column('STARTTIME', F.regexp_replace(F.col('STARTTIME'),
                                                                 F.lit(date_format_match), 
                                                                 F.lit(date_format_repl)))\
-                      .withColumn('STARTTIME', F.to_timestamp('STARTTIME'))\
-                      .withColumn('STOPTIME', F.regexp_replace(F.col('STOPTIME'),
+                      .with_column('STARTTIME', F.to_timestamp('STARTTIME'))\
+                      .with_column('STOPTIME', F.regexp_replace(F.col('STOPTIME'),
                                                                F.lit(date_format_match), 
                                                                F.lit(date_format_repl)))\
-                      .withColumn('STOPTIME', F.to_timestamp('STOPTIME'))\
-                      .write.mode('overwrite').saveAsTable(trips_table_name)
+                      .with_column('STOPTIME', F.to_timestamp('STOPTIME'))\
+                      .write.mode('overwrite').save_as_table(trips_table_name)
 
     return trips_table_name
+
+def reset_database(session, state_dict:dict, prestaged=False):
+    _ = session.sql('CREATE OR REPLACE DATABASE '+state_dict['connection_parameters']['database']).collect()
+    _ = session.sql('CREATE SCHEMA '+state_dict['connection_parameters']['schema']).collect() 
+
+    if prestaged:
+        sql_cmd = 'CREATE OR REPLACE STAGE '+state_dict['load_stage_name']+\
+                  ' url='+state_dict['connection_parameters']['download_base_url']+\
+                  " credentials=(aws_role='"+state_dict['connection_parameters']['download_role_ARN']+"')"
+        _ = session.sql(sql_cmd).collect()
+    else: 
+        _ = session.sql('CREATE STAGE IF NOT EXISTS '+state_dict['load_stage_name']).collect()
+
+    load_schema1=schema1_definition()
+    session.createDataFrame([[None]*len(load_schema1.names)], schema=load_schema1)\
+           .na.drop()\
+           .write\
+           .saveAsTable(state_dict['load_table_name']+'schema1')
+
+    load_schema2=schema2_definition()
+    session.createDataFrame([[None]*len(load_schema2.names)], schema=load_schema2)\
+       .na.drop()\
+       .write\
+       .saveAsTable(state_dict['load_table_name']+'schema2')
