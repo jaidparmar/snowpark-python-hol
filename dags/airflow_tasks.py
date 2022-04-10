@@ -36,8 +36,8 @@ def incremental_elt_task(state_dict: dict, files_to_download:list)-> dict:
                         download_role_ARN=download_role_ARN,
                         download_base_url=download_base_url)
 
-    _ = session.sql('ALTER WAREHOUSE IF EXISTS '+state_dict['compute_parameters']['load_warehouse']+\
-                    ' SUSPEND').collect()
+    #_ = session.sql('ALTER WAREHOUSE IF EXISTS '+state_dict['compute_parameters']['load_warehouse']+\
+    #                ' SUSPEND').collect()
 
     session.close()
     return state_dict
@@ -57,13 +57,13 @@ def initial_bulk_load_task(state_dict:dict)-> dict:
     
     #create empty ingest tables
     load_schema1 = schema1_definition()
-    session.create_data_frame([[None]*len(load_schema1.names)], schema=load_schema1)\
+    session.create_dataframe([[None]*len(load_schema1.names)], schema=load_schema1)\
            .na.drop()\
            .write\
            .save_as_table(state_dict['load_table_name']+'schema1')
 
     load_schema2 = schema2_definition()
-    session.create_data_frame([[None]*len(load_schema2.names)], schema=load_schema2)\
+    session.create_dataframe([[None]*len(load_schema2.names)], schema=load_schema2)\
            .na.drop()\
            .write\
            .save_as_table(state_dict['load_table_name']+'schema2')
@@ -75,8 +75,8 @@ def initial_bulk_load_task(state_dict:dict)-> dict:
                  download_role_ARN=download_role_ARN,
                  download_base_url=download_base_url)
 
-    _ = session.sql('ALTER WAREHOUSE IF EXISTS '+state_dict['compute_parameters']['load_warehouse']+\
-                    ' SUSPEND').collect()
+    #_ = session.sql('ALTER WAREHOUSE IF EXISTS '+state_dict['compute_parameters']['load_warehouse']+\
+    #                ' SUSPEND').collect()
 
     session.close()
     return state_dict
@@ -216,8 +216,8 @@ def bulk_train_predict_task(state_dict:dict,
 
     _ = session.sql("ALTER TABLE "+state_dict['pred_table_name']+\
                     " SET TAG model_id_tag = '"+state_dict['model_id']+"'").collect()
-    _ = session.sql('ALTER WAREHOUSE IF EXISTS '+state_dict['compute_parameters']['train_warehouse']+\
-                    ' SUSPEND').collect()
+    #_ = session.sql('ALTER WAREHOUSE IF EXISTS '+state_dict['compute_parameters']['train_warehouse']+\
+    #                ' SUSPEND').collect()
 
     session.close()
     return state_dict

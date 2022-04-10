@@ -32,8 +32,8 @@ def incremental_elt_task(state_dict: dict, files_to_download:list)-> dict:
                         download_role_ARN=download_role_ARN,
                         download_base_url=download_base_url)
 
-    _ = session.sql('ALTER WAREHOUSE IF EXISTS '+state_dict['compute_parameters']['load_warehouse']+\
-                    ' SUSPEND').collect()
+    #_ = session.sql('ALTER WAREHOUSE IF EXISTS '+state_dict['compute_parameters']['load_warehouse']+\
+    #                ' SUSPEND').collect()
 
     session.close()
     return state_dict
@@ -70,8 +70,8 @@ def initial_bulk_load_task(state_dict:dict)-> dict:
                  download_role_ARN=download_role_ARN,
                  download_base_url=download_base_url)
 
-    _ = session.sql('ALTER WAREHOUSE IF EXISTS '+state_dict['compute_parameters']['load_warehouse']+\
-                    ' SUSPEND').collect()
+    #_ = session.sql('ALTER WAREHOUSE IF EXISTS '+state_dict['compute_parameters']['load_warehouse']+\
+    #                ' SUSPEND').collect()
 
     session.close()
     return state_dict
@@ -204,8 +204,8 @@ def bulk_train_predict_task(state_dict:dict,
 
     _ = session.sql("ALTER TABLE "+state_dict['pred_table_name']+\
                     " SET TAG model_id_tag = '"+state_dict['model_id']+"'").collect()
-    _ = session.sql('ALTER WAREHOUSE IF EXISTS '+state_dict['compute_parameters']['train_warehouse']+\
-                    ' SUSPEND').collect()
+    #_ = session.sql('ALTER WAREHOUSE IF EXISTS '+state_dict['compute_parameters']['train_warehouse']+\
+    #                ' SUSPEND').collect()
 
     session.close()
     return state_dict
