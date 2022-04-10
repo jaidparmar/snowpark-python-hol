@@ -10,7 +10,7 @@ from dags.mlops_tasks import bulk_train_predict_task
 from dags.mlops_tasks import eval_station_models_task 
 from dags.mlops_tasks import flatten_tables_task
 
-def citibikeml_setup_taskflow(download_base_url:str):
+def citibikeml_setup_taskflow(run_date:str):
     """
     End to end Snowflake ML Demo
     """

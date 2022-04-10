@@ -25,8 +25,7 @@ def citibikeml_monthly_taskflow(files_to_download:list, run_date:str):
 
     state_dict.update({'model_id': model_id})
     state_dict.update({'run_date': run_date})
-    state_dict.update({'download_base_url': 'https://s3.amazonaws.com/tripdata/',
-                       'load_table_name': 'RAW_',
+    state_dict.update({'load_table_name': 'RAW_',
                        'trips_table_name': 'TRIPS',
                        'load_stage_name': 'LOAD_STAGE',
                        'model_stage_name': 'MODEL_STAGE',

@@ -2,13 +2,12 @@
 def snowpark_database_setup(state_dict:dict)-> dict: 
     import snowflake.snowpark.functions as F
     from dags.snowpark_connection import snowpark_connect
+    from dags.elt import reset_database
 
     session, _ = snowpark_connect('./include/state.json')
+    reset_database(session=session, state_dict=state_dict, prestaged=True)
 
-    _ = session.sql('CREATE OR REPLACE DATABASE '+state_dict['connection_parameters']['database']).collect()
-    _ = session.sql('CREATE SCHEMA '+state_dict['connection_parameters']['schema']).collect() 
     _ = session.sql('CREATE STAGE '+state_dict['model_stage_name']).collect()
-    _ = session.sql('CREATE STAGE '+state_dict['load_stage_name']).collect()
     _ = session.sql('CREATE TAG model_id_tag').collect()
 
     session.close()
@@ -20,19 +19,21 @@ def incremental_elt_task(state_dict: dict, files_to_download:list)-> dict:
     from dags.snowpark_connection import snowpark_connect
 
     session, _ = snowpark_connect()
-    _ = session.use_warehouse(state_dict['compute_parameters']['load_warehouse'])
-    _ = session.sql('CREATE STAGE IF NOT EXISTS ' + state_dict['load_stage_name']).collect()
 
     print('Ingesting '+str(files_to_download))
-    
     download_role_ARN=state_dict['connection_parameters']['download_role_ARN']
     download_base_url=state_dict['connection_parameters']['download_base_url']
+
+    _ = session.use_warehouse(state_dict['compute_parameters']['load_warehouse'])
 
     _ = incremental_elt(session=session, 
                         state_dict=state_dict, 
                         files_to_ingest=files_to_download,
                         download_role_ARN=download_role_ARN,
                         download_base_url=download_base_url)
+
+    _ = session.sql('ALTER WAREHOUSE IF EXISTS '+state_dict['compute_parameters']['load_warehouse']+\
+                    ' SUSPEND').collect()
 
     session.close()
     return state_dict
@@ -43,31 +44,34 @@ def initial_bulk_load_task(state_dict:dict)-> dict:
     from dags.elt import schema1_definition, schema2_definition
 
     session, _ = snowpark_connect()
-    _ = session.use_warehouse(state_dict['compute_parameters']['load_warehouse'])
-    _ = session.sql('CREATE STAGE IF NOT EXISTS ' + state_dict['load_stage_name']).collect()
+    
+    download_role_ARN=state_dict['connection_parameters']['download_role_ARN']
+    download_base_url=state_dict['connection_parameters']['download_base_url']
 
     print('Running initial bulk ingest from '+download_base_url)
     
     #create empty ingest tables
     load_schema1 = schema1_definition()
-    session.createDataFrame([[None]*len(load_schema1.names)], schema=load_schema1)\
+    session.create_dataframe([[None]*len(load_schema1.names)], schema=load_schema1)\
            .na.drop()\
            .write\
-           .saveAsTable(state_dict['load_table_name']+'schema1')
+           .save_as_table(state_dict['load_table_name']+'schema1')
 
     load_schema2 = schema2_definition()
-    session.createDataFrame([[None]*len(load_schema2.names)], schema=load_schema2)\
+    session.create_dataframe([[None]*len(load_schema2.names)], schema=load_schema2)\
            .na.drop()\
            .write\
-           .saveAsTable(state_dict['load_table_name']+'schema2')
+           .save_as_table(state_dict['load_table_name']+'schema2')
 
-    download_role_ARN=state_dict['connection_parameters']['download_role_ARN']
-    download_base_url=state_dict['connection_parameters']['download_base_url']
+    _ = session.use_warehouse(state_dict['compute_parameters']['load_warehouse'])
 
-    bulk_elt(session=session, 
-             state_dict=state_dict, 
-             download_role_ARN=download_role_ARN,
-             download_base_url=download_base_url)
+    _ = bulk_elt(session=session, 
+                 state_dict=state_dict, 
+                 download_role_ARN=download_role_ARN,
+                 download_base_url=download_base_url)
+
+    _ = session.sql('ALTER WAREHOUSE IF EXISTS '+state_dict['compute_parameters']['load_warehouse']+\
+                    ' SUSPEND').collect()
 
     session.close()
     return state_dict
@@ -200,6 +204,8 @@ def bulk_train_predict_task(state_dict:dict,
 
     _ = session.sql("ALTER TABLE "+state_dict['pred_table_name']+\
                     " SET TAG model_id_tag = '"+state_dict['model_id']+"'").collect()
+    _ = session.sql('ALTER WAREHOUSE IF EXISTS '+state_dict['compute_parameters']['train_warehouse']+\
+                    ' SUSPEND').collect()
 
     session.close()
     return state_dict

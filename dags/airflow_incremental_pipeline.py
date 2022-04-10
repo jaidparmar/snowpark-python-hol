@@ -27,10 +27,7 @@ default_args = {
 #local_airflow_path = '/usr/local/airflow/'
 
 @dag(default_args=default_args, schedule_interval=None, start_date=datetime(2020, 4, 1), catchup=False, tags=['monthly'])
-def citibikeml_monthly_taskflow(files_to_download:list, 
-                                run_date:str, 
-                                download_base_url=download_base_url, 
-                                download_role_ARN=download_role_ARN):
+def citibikeml_monthly_taskflow(files_to_download:list, run_date:str):
     """
     End to end Snowpark / Astronomer ML Demo
     """
@@ -45,8 +42,7 @@ def citibikeml_monthly_taskflow(files_to_download:list,
     state_dict.update({'model_id': model_id})
     state_dict.update({'run_date': run_date})
 
-    state_dict.update({'download_base_url': 'https://s3.amazonaws.com/tripdata/',
-                       'load_table_name': 'RAW_',
+    state_dict.update({'load_table_name': 'RAW_',
                        'trips_table_name': 'TRIPS',
                        'load_stage_name': 'LOAD_STAGE',
                        'model_stage_name': 'MODEL_STAGE',
@@ -64,16 +60,7 @@ def citibikeml_monthly_taskflow(files_to_download:list,
                        'eval_func_name': 'eval_model_func'
                       })
 
-
     incr_state_dict = incremental_elt_task(state_dict, files_to_download)
-#    holiday_state_dict = materialize_holiday_task(incr_state_dict)
-#    weather_state_dict = materialize_weather_task(incr_state_dict)
-#    model_udf_state_dict = deploy_model_udf_task(incr_state_dict)
-#    eval_udf_state_dict = deploy_eval_udf_task(incr_state_dict)
-#    feature_state_dict = generate_feature_table_task(incr_state_dict, holiday_state_dict, weather_state_dict) 
-#    forecast_state_dict = generate_forecast_table_task(load_state_dict, holiday_state_dict, weather_state_dict)
-#    pred_state_dict = bulk_train_predict_task(model_udf_state_dict, feature_state_dict, forecast_state_dict)
-#    eval_state_dict = eval_station_models_task(eval_udf_state_dict, pred_state_dict)
     feature_state_dict = generate_feature_table_task(incr_state_dict, incr_state_dict, incr_state_dict) 
     forecast_state_dict = generate_forecast_table_task(incr_state_dict, incr_state_dict, incr_state_dict)
     pred_state_dict = bulk_train_predict_task(feature_state_dict, feature_state_dict, forecast_state_dict)
@@ -84,10 +71,6 @@ def citibikeml_monthly_taskflow(files_to_download:list,
 
 run_date='2020_02_01'
 files_to_download = ['202001-citibike-tripdata.csv.zip']
-download_role_ARN='arn:aws:iam::484577546576:role/citibike-demo-ml-s3-role'
-download_base_url='s3://citibike-demo-ml/data/incremental/'
 
 state_dict = citibikeml_monthly_taskflow(files_to_download=files_to_download, 
-                                         run_date=run_date, 
-                                         download_base_url=download_base_url, 
-                                         download_role_ARN=download_role_ARN)
+                                         run_date=run_date)
