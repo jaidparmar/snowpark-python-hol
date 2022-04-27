@@ -58,7 +58,7 @@ jupyter notebook
 ## TODO
 
 -Update with public conda install of snowpark client  
--Alt client for Windows and linux
--Table functions
--Weather from marketplace
+-Alt client for Windows and linux  
+-Table functions  
+-Weather from marketplace  
 
