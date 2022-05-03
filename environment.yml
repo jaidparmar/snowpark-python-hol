@@ -1,11 +1,11 @@
-name: snowpark_050
+name: snowpark_060
 channels:
   - https://repo.anaconda.com/pkgs/snowflake
 dependencies:
   - python=3.8
   - pip
   - pip:
-    - './include/snowflake_snowpark_python-0.5.0-py3-none-any.whl[pandas]'
+    - './include/snowflake_snowpark_python-0.6.0-py3-none-any.whl[pandas]'
     - pytorch-tabnet
     - matplotlib
     - statsmodels

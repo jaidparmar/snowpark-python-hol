@@ -3,5 +3,5 @@
 FROM ap-airflow:py38
 USER root
 RUN apt-get update && apt-get install --reinstall -y build-essential &&  apt-get install -y gcc
-COPY include/snowflake_snowpark_python-0.5.0-py3-none-any.whl /tmp
-RUN pip install '/tmp/snowflake_snowpark_python-0.5.0-py3-none-any.whl[pandas]'
+COPY include/snowflake_snowpark_python-0.6.0-py3-none-any.whl /tmp
+RUN pip install '/tmp/snowflake_snowpark_python-0.6.0-py3-none-any.whl[pandas]'

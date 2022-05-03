@@ -21,7 +21,7 @@ def deploy_pred_train_udf(session, udf_name:str, function_name:str, model_stage_
 
     session.clear_packages()
     session.clear_imports()
-    dep_packages=["pandas==1.3.5", "pytorch", "scipy", "scikit-learn"]
+    dep_packages=["pandas==1.3.5", "pytorch", "scipy", "scikit-learn", "setuptools"]
     dep_imports=['./include/pytorch_tabnet.zip', 'dags']
 
     station_train_predict_udf = session.udf.register(station_train_predict_func, 
@@ -192,28 +192,8 @@ def train_predict(session,
                                     F.lit(lag_values_array)).alias('PRED_DATA'))\
                  .write.mode('overwrite')\
                  .save_as_table(pred_table_name)
-    
-#     #unpack the PRED dateframe (temporary until UDTFs)
-#     import pandas as pd
-#     import ast
-#     output_list = session.table(pred_table_name).collect()
-#     #df = pd.DataFrame()
-#     for row in range(len(output_list)):
-#         tempdf = pd.DataFrame(data = ast.literal_eval(output_list[row]['PRED_DATA'])[0], 
-#                               columns=ast.literal_eval(output_list[row]['PRED_DATA'])[2])
-#         tempdf['STATION_ID'] = str(output_list[row]['STATION_ID'])
-#         #df = pd.concat([df, tempdf], axis=0)
-#         session.createDataFrame(tempdf).write.saveAsTable('unpacked_'+pred_table_name)
 
-#     #unpack the FORECAST dateframe (temporary until UDTFs)
-#     for row in range(len(output_list)):
-#         tempdf = pd.DataFrame(data = ast.literal_eval(output_list[row]['PRED_DATA'])[1], 
-#                               columns=ast.literal_eval(output_list[row]['PRED_DATA'])[2])
-#         tempdf['STATION_ID'] = str(output_list[row]['STATION_ID'])
-#         #df = pd.concat([df, tempdf], axis=0)
-#         session.createDataFrame(tempdf).write.saveAsTable('unpacked_'+forecast_table_name)
-
-    return pred_table_name #, forecast_table_name
+    return pred_table_name
 
 def evaluate_station_model(session, 
                            run_date:str, 
